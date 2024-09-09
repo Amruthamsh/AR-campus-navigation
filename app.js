@@ -1,148 +1,117 @@
-let camera, scene, renderer;
-let controller;
+/*
+ * Copyright 2017 Google Inc. All Rights Reserved.
+ * Licensed under the Apache License, Version 2.0 (the 'License');
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an 'AS IS' BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
 
-const locations = [];
-let currentDestination = null;
-let navigationArrow;
+/**
+ * Query for WebXR support. If there's no support for the `immersive-ar` mode,
+ * show an error.
+ */
+(async function() {
+  const isArSessionSupported = navigator.xr && navigator.xr.isSessionSupported && await navigator.xr.isSessionSupported("immersive-ar");
+  if (isArSessionSupported) {
+    document.getElementById("enter-ar").addEventListener("click", window.app.activateXR)
+  } else {
+    onNoXRDevice();
+  }
+})();
 
-init();
-animate();
+/**
+ * Container class to manage connecting to the WebXR Device API
+ * and handle rendering on every frame.
+ */
+class App {
+  /**
+   * Run when the Start AR button is pressed.
+   */
+  activateXR = async () => {
+    try {
+      // Initialize a WebXR session using "immersive-ar".
+      this.xrSession = /* TODO */;
 
-function init() {
-    const debugInfo = document.getElementById('debugInfo');
-    debugInfo.textContent = 'Initializing...';
+      // Create the canvas that will contain our camera's background and our virtual scene.
+      this.createXRCanvas();
 
-    scene = new THREE.Scene();
-
-    camera = new THREE.PerspectiveCamera(70, window.innerWidth / window.innerHeight, 0.01, 20);
-
-    const light = new THREE.HemisphereLight(0xffffff, 0xbbbbff, 1);
-    light.position.set(0.5, 1, 0.25);
-    scene.add(light);
-
-    renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
-    renderer.setPixelRatio(window.devicePixelRatio);
-    renderer.setSize(window.innerWidth, window.innerHeight);
-    renderer.xr.enabled = true;
-    document.body.appendChild(renderer.domElement);
-
-    // Add a cube to the scene for non-AR testing
-    const geometry = new THREE.BoxGeometry(0.2, 0.2, 0.2);
-    const material = new THREE.MeshStandardMaterial({ color: 0x00ff00 });
-    const cube = new THREE.Mesh(geometry, material);
-    cube.position.set(0, 0, -1);
-    scene.add(cube);
-
-    // Check if WebXR is supported
-    if ('xr' in navigator) {
-        navigator.xr.isSessionSupported('immersive-ar').then((supported) => {
-            if (supported) {
-                debugInfo.textContent += ' WebXR supported.';
-                const arButton = ARButton.createButton(renderer, {
-                    optionalFeatures: ['dom-overlay'],
-                    domOverlay: { root: document.body }
-                });
-                document.body.appendChild(arButton);
-            } else {
-                debugInfo.textContent += ' WebXR supported, but immersive-ar not available.';
-            }
-        }).catch((error) => {
-            debugInfo.textContent += ' Error checking WebXR support: ' + error;
-        });
-    } else {
-        debugInfo.textContent += ' WebXR not supported in this browser.';
+      // With everything set up, start the app.
+      await this.onSessionStarted();
+    } catch(e) {
+      onNoXRDevice();
     }
+  }
 
-    controller = renderer.xr.getController(0);
-    controller.addEventListener('select', onSelect);
-    scene.add(controller);
+  /**
+   * Add a canvas element and initialize a WebGL context that is compatible with WebXR.
+   */
+  createXRCanvas() {
+    this.canvas = document.createElement("canvas");
+    document.body.appendChild(this.canvas);
+    this.gl = this.canvas.getContext("webgl", {xrCompatible: true});
 
-    // Create navigation arrow
-    const arrowGeometry = new THREE.ConeGeometry(0.05, 0.2, 32);
-    const arrowMaterial = new THREE.MeshBasicMaterial({ color: 0xff0000 });
-    navigationArrow = new THREE.Mesh(arrowGeometry, arrowMaterial);
-    navigationArrow.rotation.x = Math.PI / 2;
-    navigationArrow.visible = false;
-    scene.add(navigationArrow);
+    this.xrSession.updateRenderState({
+      baseLayer: new XRWebGLLayer(this.xrSession, this.gl)
+    });
+  }
 
-    window.addEventListener('resize', onWindowResize);
+  /**
+   * Called when the XRSession has begun. Here we set up our three.js
+   * renderer and kick off the render loop.
+   */
+  async onSessionStarted() {
+    // Add the `ar` class to our body, which will hide our 2D components
+    document.body.classList.add('ar');
 
-    debugInfo.textContent += ' Initialization complete.';
-}
+    // To help with working with 3D on the web, we'll use three.js.
+    this.setupThreeJs();
 
-function onWindowResize() {
-    camera.aspect = window.innerWidth / window.innerHeight;
-    camera.updateProjectionMatrix();
-    renderer.setSize(window.innerWidth, window.innerHeight);
-}
+    // Setup an XRReferenceSpace using the "local" coordinate system.
+    this.localReferenceSpace = /* TODO */;
 
-function onSelect() {
-    const geometry = new THREE.SphereGeometry(0.03, 32, 32);
-    const material = new THREE.MeshBasicMaterial({ color: 0xffffff * Math.random() });
-    const location = new THREE.Mesh(geometry, material);
-    location.position.set(0, 0, -0.5).applyMatrix4(controller.matrixWorld);
-    location.quaternion.setFromRotationMatrix(controller.matrixWorld);
-    scene.add(location);
-    locations.push(location);
+    // Start a rendering loop using this.onXRFrame.
+    this.xrSession.requestAnimationFrame(this.onXRFrame);
+  }
 
-    console.log('Location added:', location.position);
-    document.getElementById('debugInfo').textContent = 'Location added: ' + JSON.stringify(location.position);
-}
+  /**
+   * Called on the XRSession's requestAnimationFrame.
+   * Called with the time and XRPresentationFrame.
+   */
+  onXRFrame = (time, frame) => {
+    /** TODO draw the application */
+  }
 
-function animate() {
-    renderer.setAnimationLoop(render);
-}
+  /**
+   * Initialize three.js specific rendering code, including a WebGLRenderer,
+   * a demo scene, and a camera for viewing the 3D content.
+   */
+  setupThreeJs() {
+    // To help with working with 3D on the web, we'll use three.js.
+    // Set up the WebGLRenderer, which handles rendering to our session's base layer.
+    this.renderer = new THREE.WebGLRenderer({
+      alpha: true,
+      preserveDrawingBuffer: true,
+      canvas: this.canvas,
+      context: this.gl
+    });
+    this.renderer.autoClear = false;
 
-function render(timestamp, frame) {
-    if (frame) {
-        const referenceSpace = renderer.xr.getReferenceSpace();
-        const session = renderer.xr.getSession();
+    // Initialize our demo scene.
+    this.scene = DemoUtils.createCubeScene();
 
-        if (session) {
-            document.getElementById('debugInfo').textContent = 'AR session active';
-        }
-    }
+    // We'll update the camera matrices directly from API, so
+    // disable matrix auto updates so three.js doesn't attempt
+    // to handle the matrices independently.
+    this.camera = new THREE.PerspectiveCamera();
+    this.camera.matrixAutoUpdate = false;
+  }
+};
 
-    if (currentDestination) {
-        updateNavigationArrow();
-    }
-    renderer.render(scene, camera);
-}
-
-function updateNavigationArrow() {
-    const cameraPosition = new THREE.Vector3();
-    camera.getWorldPosition(cameraPosition);
-    const direction = currentDestination.position.clone().sub(cameraPosition);
-    
-    navigationArrow.position.copy(cameraPosition);
-    navigationArrow.position.y -= 0.2; // Place the arrow slightly below the camera
-    navigationArrow.lookAt(currentDestination.position);
-    
-    const distance = direction.length();
-    navigationArrow.scale.z = Math.min(distance, 0.5); // Adjust arrow length based on distance
-    
-    navigationArrow.visible = true;
-}
-
-function navigateTo(locationIndex) {
-    if (locationIndex >= 0 && locationIndex < locations.length) {
-        currentDestination = locations[locationIndex];
-        navigationArrow.visible = true;
-        console.log('Navigating to location:', currentDestination.position);
-        document.getElementById('debugInfo').textContent = 'Navigating to: ' + JSON.stringify(currentDestination.position);
-    } else {
-        console.error('Invalid location index');
-        document.getElementById('debugInfo').textContent = 'Invalid location index';
-    }
-}
-
-function stopNavigation() {
-    currentDestination = null;
-    navigationArrow.visible = false;
-    console.log('Navigation stopped');
-    document.getElementById('debugInfo').textContent = 'Navigation stopped';
-}
-
-// Expose functions to window for easy access
-window.navigateTo = navigateTo;
-window.stopNavigation = stopNavigation;
+window.app = new App();
