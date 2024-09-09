@@ -1,94 +1,47 @@
 <!DOCTYPE html>
-<html>
-  <head>
-    <title>AR.js Indoor Navigation</title>
-    <!-- Load A-Frame and AR.js libraries -->
-    <script src="https://aframe.io/releases/1.2.0/aframe.min.js"></script>
-    <script src="https://raw.githack.com/AR-js-org/AR.js/3.3.2/aframe/build/aframe-ar.js"></script>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>WebXR Indoor Navigation</title>
     <style>
-      #ui { position: absolute; top: 10px; left: 10px; z-index: 100; }
-      button { margin: 5px; }
+        body { margin: 0; }
+        canvas { display: block; }
+        #info {
+            position: absolute;
+            top: 10px;
+            width: 100%;
+            text-align: center;
+            color: white;
+            font-family: Arial, sans-serif;
+            font-size: 14px;
+            pointer-events: none;
+        }
+        #navigationControls {
+            position: absolute;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            display: flex;
+            gap: 10px;
+        }
+        button {
+            padding: 10px 20px;
+            font-size: 16px;
+            cursor: pointer;
+        }
     </style>
-  </head>
-  <body style="margin: 0; overflow: hidden;">
-    <!-- AR Scene -->
-    <a-scene embedded arjs="sourceType: webcam; debugUIEnabled: false;" vr-mode-ui="enabled: false">
-      <!-- Marker for displaying AR content -->
-      <a-marker preset="hiro">
-        <!-- 3D object to show when marker is detected -->
-        <a-box id="target-box" position="0 0.5 0" rotation="0 45 0" color="#ff0000"></a-box>
-        <a-text value="Go Straight" position="0 1.5 0"></a-text>
-      </a-marker>
-      <!-- Arrow for navigation -->
-      <a-entity id="navigation-arrow" geometry="primitive: cone; radiusBottom: 0.05; radiusTop: 0; height: 0.2" material="color: #ffff00" position="0 0 0"></a-entity>
-      <!-- Default camera -->
-      <a-entity camera></a-entity>
-    </a-scene>
-
-    <!-- UI for setting and starting navigation -->
-    <div id="ui">
-      <button id="add-location">Add Location</button>
-      <button id="start-navigation">Navigate</button>
+</head>
+<body>
+    <div id="info">WebXR Indoor Navigation<br>Tap to add locations</div>
+    <div id="navigationControls">
+        <button onclick="navigateTo(0)">Navigate to Location 1</button>
+        <button onclick="navigateTo(1)">Navigate to Location 2</button>
+        <button onclick="stopNavigation()">Stop Navigation</button>
     </div>
 
-    <script>
-      let targetLocation = null;
-      let userPosition = new THREE.Vector3();
-      let arrowDirection = new THREE.Vector3();
-      let targetBox, navigationArrow;
-      let scene = document.querySelector('a-scene');
-
-      // Ensure scene is fully loaded before accessing elements
-      scene.addEventListener('loaded', () => {
-        targetBox = document.querySelector('#target-box');
-        navigationArrow = document.querySelector('#navigation-arrow');
-
-        // Check for camera permissions
-        navigator.permissions.query({ name: 'camera' }).then(permissionStatus => {
-          if (permissionStatus.state === 'denied') {
-            alert('Camera access is denied. Please allow camera access in your browser settings.');
-          }
-        });
-
-        // Add location on button click
-        document.getElementById("add-location").addEventListener("click", () => {
-          // Set the target location to the current marker's position
-          if (targetBox) {
-            const markerPosition = targetBox.object3D.position.clone();
-            targetLocation = markerPosition;
-            console.log(`Location added at: (${targetLocation.x}, ${targetLocation.y}, ${targetLocation.z})`);
-          } else {
-            console.error('Target box not found');
-          }
-        });
-
-        // Start navigation on button click
-        document.getElementById("start-navigation").addEventListener("click", () => {
-          if (targetLocation) {
-            console.log('Navigation started');
-            updateNavigation();
-          } else {
-            alert('No location set. Please add a location first.');
-          }
-        });
-
-        // Update user position and navigation on each frame
-        scene.renderer.xr.addEventListener('sessionstart', () => {
-          scene.renderer.xr.getCamera(scene.camera).getWorldPosition(userPosition);
-        });
-
-        scene.renderer.xr.addEventListener('sessionend', () => {
-          userPosition.set(0, 0, 0); // Reset user position on session end
-        });
-
-        function updateNavigation() {
-          if (targetLocation) {
-            // Calculate direction from user to target location
-            arrowDirection.subVectors(targetLocation, userPosition).normalize();
-            navigationArrow.object3D.lookAt(targetLocation);
-          }
-        }
-      });
-    </script>
-  </body>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/webxr/ARButton.js"></script>
+    <script src="your-navigation-script.js"></script>
+</body>
 </html>
