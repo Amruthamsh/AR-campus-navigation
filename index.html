@@ -1,32 +1,22 @@
 <!DOCTYPE html>
 <html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Markerless AR with AR.js</title>
-
-    <!-- A-Frame for AR.js -->
-    <script src="https://aframe.io/releases/1.2.0/aframe.min.js"></script>
-    <script src="https://raw.githack.com/AR-js-org/AR.js/master/aframe/build/aframe-ar-nft.js"></script>
-  </head>
-  <body style="margin: 0; overflow: hidden;">
-    <!-- A-Frame Scene -->
-    <a-scene
-      vr-mode-ui="enabled: false"
-      embedded
-      arjs="sourceType: webcam; gpsMinDistance: 5; gpsTimeInterval: 1000;"
-    >
-      <!-- Virtual object anchored at specific GPS coordinates -->
-      <a-entity
-        gps-entity-place="latitude: 12.976750; longitude: 77.575280; altitude: 0;"
-        geometry="primitive: box; height: 1; width: 1; depth: 1"
-        material="color: blue"
-      >
-        <a-text value="You are here" position="0 1 0" rotation="0 0 0"></a-text>
-      </a-entity>
-
-      <!-- Camera -->
-      <a-entity camera gps-camera></a-entity>
-    </a-scene>
-  </body>
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Indoor Navigation with WebXR</title>
+  <style>
+    body { margin: 0; }
+    canvas { display: block; }
+    #ui { position: absolute; top: 10px; left: 10px; z-index: 100; }
+  </style>
+</head>
+<body>
+  <div id="ui">
+    <button id="add-location">Add Location</button>
+    <button id="start-navigation">Navigate</button>
+  </div>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.151.3/build/three.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@webxr/threejs@0.4.4/webxr.js"></script>
+  <script src="app.js"></script>
+</body>
 </html>
