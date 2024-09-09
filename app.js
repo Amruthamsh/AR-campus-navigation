@@ -9,6 +9,9 @@ init();
 animate();
 
 function init() {
+    const debugInfo = document.getElementById('debugInfo');
+    debugInfo.textContent = 'Initializing...';
+
     scene = new THREE.Scene();
 
     camera = new THREE.PerspectiveCamera(70, window.innerWidth / window.innerHeight, 0.01, 20);
@@ -23,11 +26,32 @@ function init() {
     renderer.xr.enabled = true;
     document.body.appendChild(renderer.domElement);
 
-    const arButton = ARButton.createButton(renderer, {
-        optionalFeatures: ['dom-overlay'],
-        domOverlay: { root: document.body }
-    });
-    document.body.appendChild(arButton);
+    // Add a cube to the scene for non-AR testing
+    const geometry = new THREE.BoxGeometry(0.2, 0.2, 0.2);
+    const material = new THREE.MeshStandardMaterial({ color: 0x00ff00 });
+    const cube = new THREE.Mesh(geometry, material);
+    cube.position.set(0, 0, -1);
+    scene.add(cube);
+
+    // Check if WebXR is supported
+    if ('xr' in navigator) {
+        navigator.xr.isSessionSupported('immersive-ar').then((supported) => {
+            if (supported) {
+                debugInfo.textContent += ' WebXR supported.';
+                const arButton = ARButton.createButton(renderer, {
+                    optionalFeatures: ['dom-overlay'],
+                    domOverlay: { root: document.body }
+                });
+                document.body.appendChild(arButton);
+            } else {
+                debugInfo.textContent += ' WebXR supported, but immersive-ar not available.';
+            }
+        }).catch((error) => {
+            debugInfo.textContent += ' Error checking WebXR support: ' + error;
+        });
+    } else {
+        debugInfo.textContent += ' WebXR not supported in this browser.';
+    }
 
     controller = renderer.xr.getController(0);
     controller.addEventListener('select', onSelect);
@@ -42,6 +66,8 @@ function init() {
     scene.add(navigationArrow);
 
     window.addEventListener('resize', onWindowResize);
+
+    debugInfo.textContent += ' Initialization complete.';
 }
 
 function onWindowResize() {
@@ -60,13 +86,23 @@ function onSelect() {
     locations.push(location);
 
     console.log('Location added:', location.position);
+    document.getElementById('debugInfo').textContent = 'Location added: ' + JSON.stringify(location.position);
 }
 
 function animate() {
     renderer.setAnimationLoop(render);
 }
 
-function render() {
+function render(timestamp, frame) {
+    if (frame) {
+        const referenceSpace = renderer.xr.getReferenceSpace();
+        const session = renderer.xr.getSession();
+
+        if (session) {
+            document.getElementById('debugInfo').textContent = 'AR session active';
+        }
+    }
+
     if (currentDestination) {
         updateNavigationArrow();
     }
@@ -93,8 +129,10 @@ function navigateTo(locationIndex) {
         currentDestination = locations[locationIndex];
         navigationArrow.visible = true;
         console.log('Navigating to location:', currentDestination.position);
+        document.getElementById('debugInfo').textContent = 'Navigating to: ' + JSON.stringify(currentDestination.position);
     } else {
         console.error('Invalid location index');
+        document.getElementById('debugInfo').textContent = 'Invalid location index';
     }
 }
 
@@ -102,6 +140,7 @@ function stopNavigation() {
     currentDestination = null;
     navigationArrow.visible = false;
     console.log('Navigation stopped');
+    document.getElementById('debugInfo').textContent = 'Navigation stopped';
 }
 
 // Expose functions to window for easy access
