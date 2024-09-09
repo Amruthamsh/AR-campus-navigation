@@ -1,7 +1,3 @@
-// Import required libraries
-import * as THREE from 'three';
-import { ARButton } from 'three/examples/jsm/webxr/ARButton.js';
-
 let camera, scene, renderer;
 let controller;
 
@@ -13,9 +9,6 @@ init();
 animate();
 
 function init() {
-    const container = document.createElement('div');
-    document.body.appendChild(container);
-
     scene = new THREE.Scene();
 
     camera = new THREE.PerspectiveCamera(70, window.innerWidth / window.innerHeight, 0.01, 20);
@@ -28,9 +21,13 @@ function init() {
     renderer.setPixelRatio(window.devicePixelRatio);
     renderer.setSize(window.innerWidth, window.innerHeight);
     renderer.xr.enabled = true;
-    container.appendChild(renderer.domElement);
+    document.body.appendChild(renderer.domElement);
 
-    document.body.appendChild(ARButton.createButton(renderer));
+    const arButton = ARButton.createButton(renderer, {
+        optionalFeatures: ['dom-overlay'],
+        domOverlay: { root: document.body }
+    });
+    document.body.appendChild(arButton);
 
     controller = renderer.xr.getController(0);
     controller.addEventListener('select', onSelect);
@@ -91,7 +88,6 @@ function updateNavigationArrow() {
     navigationArrow.visible = true;
 }
 
-// Function to start navigation to a specific location
 function navigateTo(locationIndex) {
     if (locationIndex >= 0 && locationIndex < locations.length) {
         currentDestination = locations[locationIndex];
@@ -102,7 +98,6 @@ function navigateTo(locationIndex) {
     }
 }
 
-// Function to stop navigation
 function stopNavigation() {
     currentDestination = null;
     navigationArrow.visible = false;
@@ -110,6 +105,5 @@ function stopNavigation() {
 }
 
 // Expose functions to window for easy access
-window.addLocation = onSelect;
 window.navigateTo = navigateTo;
 window.stopNavigation = stopNavigation;
