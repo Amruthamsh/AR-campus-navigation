@@ -7,6 +7,7 @@
     <script src="https://raw.githack.com/AR-js-org/AR.js/3.3.2/aframe/build/aframe-ar.js"></script>
     <style>
       #ui { position: absolute; top: 10px; left: 10px; z-index: 100; }
+      button { margin: 5px; }
     </style>
   </head>
   <body style="margin: 0; overflow: hidden;">
@@ -34,39 +35,44 @@
       let targetLocation = null;
       let userPosition = new THREE.Vector3();
       let arrowDirection = new THREE.Vector3();
+      let targetBox, navigationArrow;
       let scene = document.querySelector('a-scene');
-      let targetBox = document.querySelector('#target-box');
-      let navigationArrow = document.querySelector('#navigation-arrow');
 
-      // Function to update the arrow's position and direction
-      function updateNavigation() {
-        if (targetLocation) {
-          // Calculate direction from user to target location
-          arrowDirection.subVectors(targetLocation, userPosition).normalize();
-          navigationArrow.object3D.lookAt(targetLocation.x, targetLocation.y, targetLocation.z);
-        }
-      }
-
-      // Add location on button click
-      document.getElementById("add-location").addEventListener("click", () => {
-        // Set the target location to the current marker's position
-        const markerPosition = targetBox.object3D.position.clone();
-        targetLocation = markerPosition;
-        console.log(`Location added at: (${targetLocation.x}, ${targetLocation.y}, ${targetLocation.z})`);
-      });
-
-      // Start navigation on button click
-      document.getElementById("start-navigation").addEventListener("click", () => {
-        if (targetLocation) {
-          console.log('Navigation started');
-          updateNavigation();
-        } else {
-          alert('No location set. Please add a location first.');
-        }
-      });
-
-      // Update user position and navigation on each frame
+      // Ensure scene is fully loaded before accessing elements
       scene.addEventListener('loaded', () => {
+        targetBox = document.querySelector('#target-box');
+        navigationArrow = document.querySelector('#navigation-arrow');
+
+        // Check for camera permissions
+        navigator.permissions.query({ name: 'camera' }).then(permissionStatus => {
+          if (permissionStatus.state === 'denied') {
+            alert('Camera access is denied. Please allow camera access in your browser settings.');
+          }
+        });
+
+        // Add location on button click
+        document.getElementById("add-location").addEventListener("click", () => {
+          // Set the target location to the current marker's position
+          if (targetBox) {
+            const markerPosition = targetBox.object3D.position.clone();
+            targetLocation = markerPosition;
+            console.log(`Location added at: (${targetLocation.x}, ${targetLocation.y}, ${targetLocation.z})`);
+          } else {
+            console.error('Target box not found');
+          }
+        });
+
+        // Start navigation on button click
+        document.getElementById("start-navigation").addEventListener("click", () => {
+          if (targetLocation) {
+            console.log('Navigation started');
+            updateNavigation();
+          } else {
+            alert('No location set. Please add a location first.');
+          }
+        });
+
+        // Update user position and navigation on each frame
         scene.renderer.xr.addEventListener('sessionstart', () => {
           scene.renderer.xr.getCamera(scene.camera).getWorldPosition(userPosition);
         });
@@ -74,6 +80,14 @@
         scene.renderer.xr.addEventListener('sessionend', () => {
           userPosition.set(0, 0, 0); // Reset user position on session end
         });
+
+        function updateNavigation() {
+          if (targetLocation) {
+            // Calculate direction from user to target location
+            arrowDirection.subVectors(targetLocation, userPosition).normalize();
+            navigationArrow.object3D.lookAt(targetLocation);
+          }
+        }
       });
     </script>
   </body>
