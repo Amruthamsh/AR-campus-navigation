@@ -1,140 +1,58 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
+<!doctype html>
+<!--
+/*
+ * Copyright 2017 Google Inc. All Rights Reserved.
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+-->
+<html>
+  <head>
+    <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Advanced Indoor Navigation</title>
-    <style>
-        body { font-family: Arial, sans-serif; margin: 0; padding: 0; overflow: hidden; }
-        #canvas { display: block; }
-        #debugInfo { position: absolute; top: 10px; left: 10px; background: rgba(255,255,255,0.7); padding: 10px; }
-    </style>
-</head>
-<body>
-    <canvas id="canvas"></canvas>
-    <div id="debugInfo"></div>
+    <title>Building an augmented reality application with the WebXR Device API</title>
+    <link rel="stylesheet" href="https://unpkg.com/material-components-web@latest/dist/material-components-web.min.css">
+    <script src="https://unpkg.com/material-components-web@latest/dist/material-components-web.min.js"></script>
 
-    <script>
-        const canvas = document.getElementById('canvas');
-        const ctx = canvas.getContext('2d');
-        const debugInfo = document.getElementById('debugInfo');
+    <!-- three.js -->
+    <script src="https://unpkg.com/three@0.126.0/build/three.js"></script>
+    <script src="https://unpkg.com/three@0.126.0/examples/js/loaders/GLTFLoader.js"></script>
 
-        let position = { x: 0, y: 0 };
-        let velocity = { x: 0, y: 0 };
-        let heading = 0;
-        let stepCount = 0;
-        let lastTimestamp = 0;
-        let lastAcceleration = { x: 0, y: 0, z: 0 };
+    <link rel="stylesheet" type="text/css" href="../shared/app.css" />
+    <script src="../shared/utils.js"></script>
+  </head>
+  <body>
+    <div id="enter-ar-info" class="mdc-card demo-card">
+      <h2>Augmented Reality with the WebXR Device API</h2>
+      <p>
+        This is an experiment using augmented reality features with the WebXR Device API.
+        Upon entering AR, you will be surrounded by a world of cubes.
+        Learn more about these features from the <a href="https://codelabs.developers.google.com/codelabs/ar-with-webxr">Building an augmented reality application with the WebXR Device API</a> Code Lab.
+      </p>
 
-        const SMOOTHING_FACTOR = 0.2;
-        const STEP_THRESHOLD = 10;
-        const STEP_LENGTH = 0.7; // meters
+      <!-- Starting an immersive WebXR session requires user interaction. Start the WebXR experience with a simple button. -->
+      <a id="enter-ar" class="mdc-button mdc-button--raised mdc-button--accent">
+        Start augmented reality
+      </a>
+    </div>
 
-        function resizeCanvas() {
-            canvas.width = window.innerWidth;
-            canvas.height = window.innerHeight;
-        }
-
-        function drawDot() {
-            ctx.clearRect(0, 0, canvas.width, canvas.height);
-            ctx.beginPath();
-            ctx.arc(canvas.width / 2 + position.x, canvas.height / 2 - position.y, 10, 0, 2 * Math.PI);
-            ctx.fillStyle = 'blue';
-            ctx.fill();
-
-            // Draw heading indicator
-            ctx.beginPath();
-            ctx.moveTo(canvas.width / 2 + position.x, canvas.height / 2 - position.y);
-            ctx.lineTo(
-                canvas.width / 2 + position.x + Math.cos(heading) * 30,
-                canvas.height / 2 - position.y - Math.sin(heading) * 30
-            );
-            ctx.strokeStyle = 'red';
-            ctx.stroke();
-        }
-
-        function updatePosition(acceleration, interval) {
-            // Simple motion model
-            velocity.x += acceleration.x * interval;
-            velocity.y += acceleration.y * interval;
-            position.x += velocity.x * interval + 0.5 * acceleration.x * interval * interval;
-            position.y += velocity.y * interval + 0.5 * acceleration.y * interval * interval;
-
-            // Apply smoothing
-            position.x = SMOOTHING_FACTOR * position.x + (1 - SMOOTHING_FACTOR) * lastAcceleration.x;
-            position.y = SMOOTHING_FACTOR * position.y + (1 - SMOOTHING_FACTOR) * lastAcceleration.y;
-
-            lastAcceleration = { ...acceleration };
-        }
-
-        function detectStep(acceleration) {
-            const magnitude = Math.sqrt(
-                acceleration.x * acceleration.x +
-                acceleration.y * acceleration.y +
-                acceleration.z * acceleration.z
-            );
-
-            if (magnitude > STEP_THRESHOLD) {
-                stepCount++;
-                // Update position based on step and heading
-                position.x += Math.cos(heading) * STEP_LENGTH;
-                position.y += Math.sin(heading) * STEP_LENGTH;
-            }
-        }
-
-        function handleMotion(event) {
-            const { accelerationIncludingGravity, rotationRate, interval } = event;
-            const timestamp = event.timeStamp || performance.now();
-
-            if (lastTimestamp !== 0) {
-                const deltaTime = (timestamp - lastTimestamp) / 1000; // Convert to seconds
-
-                // Update heading using gyroscope data
-                if (rotationRate && rotationRate.alpha !== null) {
-                    heading += rotationRate.alpha * deltaTime;
-                }
-
-                // Detect step and update position
-                detectStep(accelerationIncludingGravity);
-                updatePosition(accelerationIncludingGravity, deltaTime);
-
-                drawDot();
-                updateDebugInfo(accelerationIncludingGravity, rotationRate);
-            }
-
-            lastTimestamp = timestamp;
-        }
-
-        function updateDebugInfo(acceleration, rotation) {
-            debugInfo.innerHTML = `
-                Position: (${position.x.toFixed(2)}, ${position.y.toFixed(2)})<br>
-                Heading: ${(heading * 180 / Math.PI).toFixed(2)}°<br>
-                Steps: ${stepCount}<br>
-                Acceleration: (${acceleration.x.toFixed(2)}, ${acceleration.y.toFixed(2)}, ${acceleration.z.toFixed(2)})<br>
-                Rotation: (${rotation?.alpha.toFixed(2) || 'N/A'}, ${rotation?.beta.toFixed(2) || 'N/A'}, ${rotation?.gamma.toFixed(2) || 'N/A'})
-            `;
-        }
-
-        function startTracking() {
-            if (typeof DeviceMotionEvent.requestPermission === 'function') {
-                DeviceMotionEvent.requestPermission()
-                    .then(response => {
-                        if (response == 'granted') {
-                            window.addEventListener('devicemotion', handleMotion);
-                        }
-                    })
-                    .catch(console.error);
-            } else {
-                window.addEventListener('devicemotion', handleMotion);
-            }
-        }
-
-        window.addEventListener('resize', resizeCanvas);
-        resizeCanvas();
-        drawDot();
-
-        // Start tracking on page load (you might want to trigger this on a user action instead)
-        startTracking();
-    </script>
-</body>
+    <div id="unsupported-info" class="mdc-card demo-card">
+      <h2>Unsupported Browser</h2>
+      <p>
+        Your browser does not support AR features with WebXR. Learn more about these features from the
+        <a href="https://codelabs.developers.google.com/codelabs/ar-with-webxr">Building an augmented reality application with the WebXR Device API</a> Code Lab.
+      </p>
+    </div>
+    <script src="app.js"></script>
+    <div id="stabilization"></div>
+  </body>
 </html>
