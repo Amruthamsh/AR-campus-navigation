@@ -1,58 +1,172 @@
-<!doctype html>
-<!--
-/*
- * Copyright 2017 Google Inc. All Rights Reserved.
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
--->
-<html>
-  <head>
-    <meta charset="utf-8">
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Building an augmented reality application with the WebXR Device API</title>
-    <link rel="stylesheet" href="https://unpkg.com/material-components-web@latest/dist/material-components-web.min.css">
-    <script src="https://unpkg.com/material-components-web@latest/dist/material-components-web.min.js"></script>
+    <title>Stabilized Indoor Navigation</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 0; padding: 0; overflow: hidden; }
+        #canvas { display: block; }
+        #debugInfo { position: absolute; top: 10px; left: 10px; background: rgba(255,255,255,0.7); padding: 10px; }
+        #startButton { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); padding: 10px 20px; font-size: 18px; }
+    </style>
+</head>
+<body>
+    <canvas id="canvas"></canvas>
+    <div id="debugInfo"></div>
+    <button id="startButton">Start Navigation</button>
 
-    <!-- three.js -->
-    <script src="https://unpkg.com/three@0.126.0/build/three.js"></script>
-    <script src="https://unpkg.com/three@0.126.0/examples/js/loaders/GLTFLoader.js"></script>
+    <script>
+        const canvas = document.getElementById('canvas');
+        const ctx = canvas.getContext('2d');
+        const debugInfo = document.getElementById('debugInfo');
+        const startButton = document.getElementById('startButton');
 
-    <link rel="stylesheet" type="text/css" href="../shared/app.css" />
-    <script src="../shared/utils.js"></script>
-  </head>
-  <body>
-    <div id="enter-ar-info" class="mdc-card demo-card">
-      <h2>Augmented Reality with the WebXR Device API</h2>
-      <p>
-        This is an experiment using augmented reality features with the WebXR Device API.
-        Upon entering AR, you will be surrounded by a world of cubes.
-        Learn more about these features from the <a href="https://codelabs.developers.google.com/codelabs/ar-with-webxr">Building an augmented reality application with the WebXR Device API</a> Code Lab.
-      </p>
+        let position = { x: 0, y: 0 };
+        let velocity = { x: 0, y: 0 };
+        let heading = 0;
+        let stepCount = 0;
+        let lastTimestamp = 0;
+        let isTracking = false;
+        let calibrationOffset = { x: 0, y: 0, z: 0 };
+        let calibrationSamples = 0;
 
-      <!-- Starting an immersive WebXR session requires user interaction. Start the WebXR experience with a simple button. -->
-      <a id="enter-ar" class="mdc-button mdc-button--raised mdc-button--accent">
-        Start augmented reality
-      </a>
-    </div>
+        const SMOOTHING_FACTOR = 0.1;
+        const STEP_THRESHOLD = 1.2;
+        const STEP_COOLDOWN = 300; // ms
+        const STEP_LENGTH = 0.5; // meters
+        const SCALE_FACTOR = 50; // pixels per meter
 
-    <div id="unsupported-info" class="mdc-card demo-card">
-      <h2>Unsupported Browser</h2>
-      <p>
-        Your browser does not support AR features with WebXR. Learn more about these features from the
-        <a href="https://codelabs.developers.google.com/codelabs/ar-with-webxr">Building an augmented reality application with the WebXR Device API</a> Code Lab.
-      </p>
-    </div>
-    <script src="app.js"></script>
-    <div id="stabilization"></div>
-  </body>
+        function resizeCanvas() {
+            canvas.width = window.innerWidth;
+            canvas.height = window.innerHeight;
+            drawDot();
+        }
+
+        function drawDot() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            ctx.beginPath();
+            ctx.arc(canvas.width / 2 + position.x * SCALE_FACTOR, canvas.height / 2 - position.y * SCALE_FACTOR, 10, 0, 2 * Math.PI);
+            ctx.fillStyle = 'blue';
+            ctx.fill();
+
+            // Draw heading indicator
+            ctx.beginPath();
+            ctx.moveTo(canvas.width / 2 + position.x * SCALE_FACTOR, canvas.height / 2 - position.y * SCALE_FACTOR);
+            ctx.lineTo(
+                canvas.width / 2 + position.x * SCALE_FACTOR + Math.cos(heading) * 30,
+                canvas.height / 2 - position.y * SCALE_FACTOR - Math.sin(heading) * 30
+            );
+            ctx.strokeStyle = 'red';
+            ctx.stroke();
+        }
+
+        let lastStepTime = 0;
+        function detectStep(acceleration, timestamp) {
+            const magnitude = Math.sqrt(
+                acceleration.x * acceleration.x +
+                acceleration.y * acceleration.y +
+                acceleration.z * acceleration.z
+            );
+
+            if (magnitude > STEP_THRESHOLD && timestamp - lastStepTime > STEP_COOLDOWN) {
+                stepCount++;
+                lastStepTime = timestamp;
+                // Update position based on step and heading
+                position.x += Math.cos(heading) * STEP_LENGTH;
+                position.y += Math.sin(heading) * STEP_LENGTH;
+                return true;
+            }
+            return false;
+        }
+
+        function calibrateAccelerometer(acceleration) {
+            if (calibrationSamples < 100) {
+                calibrationOffset.x += acceleration.x;
+                calibrationOffset.y += acceleration.y;
+                calibrationOffset.z += acceleration.z;
+                calibrationSamples++;
+            } else if (calibrationSamples === 100) {
+                calibrationOffset.x /= 100;
+                calibrationOffset.y /= 100;
+                calibrationOffset.z /= 100;
+                calibrationSamples++;
+                console.log("Calibration complete", calibrationOffset);
+            }
+        }
+
+        function handleMotion(event) {
+            if (!isTracking) return;
+
+            const { accelerationIncludingGravity, rotationRate } = event;
+            const timestamp = event.timeStamp || performance.now();
+
+            calibrateAccelerometer(accelerationIncludingGravity);
+
+            if (lastTimestamp !== 0 && calibrationSamples > 100) {
+                const deltaTime = (timestamp - lastTimestamp) / 1000; // Convert to seconds
+
+                // Calibrated acceleration
+                const calibratedAcceleration = {
+                    x: accelerationIncludingGravity.x - calibrationOffset.x,
+                    y: accelerationIncludingGravity.y - calibrationOffset.y,
+                    z: accelerationIncludingGravity.z - calibrationOffset.z
+                };
+
+                // Update heading using gyroscope data
+                if (rotationRate && rotationRate.alpha !== null) {
+                    heading += rotationRate.alpha * deltaTime;
+                    heading = heading % (2 * Math.PI);
+                }
+
+                // Detect step and update position
+                const stepDetected = detectStep(calibratedAcceleration, timestamp);
+
+                if (!stepDetected) {
+                    // Apply smoothing only when a step is not detected
+                    position.x = SMOOTHING_FACTOR * position.x + (1 - SMOOTHING_FACTOR) * (position.x + velocity.x * deltaTime);
+                    position.y = SMOOTHING_FACTOR * position.y + (1 - SMOOTHING_FACTOR) * (position.y + velocity.y * deltaTime);
+                }
+
+                drawDot();
+                updateDebugInfo(calibratedAcceleration, rotationRate);
+            }
+
+            lastTimestamp = timestamp;
+        }
+
+        function updateDebugInfo(acceleration, rotation) {
+            debugInfo.innerHTML = `
+                Position: (${(position.x).toFixed(2)}, ${(position.y).toFixed(2)})<br>
+                Heading: ${(heading * 180 / Math.PI).toFixed(2)}°<br>
+                Steps: ${stepCount}<br>
+                Acceleration: (${acceleration.x.toFixed(2)}, ${acceleration.y.toFixed(2)}, ${acceleration.z.toFixed(2)})<br>
+                Rotation: (${rotation?.alpha.toFixed(2) || 'N/A'}, ${rotation?.beta.toFixed(2) || 'N/A'}, ${rotation?.gamma.toFixed(2) || 'N/A'})
+            `;
+        }
+
+        function startTracking() {
+            if (typeof DeviceMotionEvent.requestPermission === 'function') {
+                DeviceMotionEvent.requestPermission()
+                    .then(response => {
+                        if (response == 'granted') {
+                            window.addEventListener('devicemotion', handleMotion);
+                            isTracking = true;
+                            startButton.style.display = 'none';
+                        }
+                    })
+                    .catch(console.error);
+            } else {
+                window.addEventListener('devicemotion', handleMotion);
+                isTracking = true;
+                startButton.style.display = 'none';
+            }
+        }
+
+        window.addEventListener('resize', resizeCanvas);
+        startButton.addEventListener('click', startTracking);
+        resizeCanvas();
+        drawDot();
+    </script>
+</body>
 </html>
