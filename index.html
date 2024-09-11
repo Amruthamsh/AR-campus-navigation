@@ -115,8 +115,8 @@
 
                 // Update heading using gyroscope data
                 if (rotationRate && rotationRate.alpha !== null) {
-                    heading += rotationRate.alpha * deltaTime;
-                    heading = heading % (2 * Math.PI);
+                    heading += (rotationRate.alpha * Math.PI / 180) * deltaTime; // Convert degrees to radians
+                    heading = heading % (2 * Math.PI); // Keep heading between 0 and 2π
                 }
 
                 // Detect step and update position
@@ -149,7 +149,7 @@
             if (typeof DeviceMotionEvent.requestPermission === 'function') {
                 DeviceMotionEvent.requestPermission()
                     .then(response => {
-                        if (response == 'granted') {
+                        if (response === 'granted') {
                             window.addEventListener('devicemotion', handleMotion);
                             isTracking = true;
                             startButton.style.display = 'none';
